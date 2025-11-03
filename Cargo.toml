@@ -4,27 +4,30 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+actix-web = "4.11.0"
+reqwest = "0.12.24"
+tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1.0.228", features = ["derive"] }
 
-# On Linux:
-# - Ubuntu, `sudo apt-get install lld clang`
-# - Arch, `sudo pacman -S lld clang`
-[target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "linker=clang", "-C", "link-arg=-fuse-ld=lld"]
+[dependencies.sqlx]
+version = "0.8.6"
+default-features = false
+features = [ 
+    "macros", 
+    "postgres", 
+    "uuid", 
+    "chrono", 
+    "migrate"
+]
 
-# On MacOS, `brew install michaeleisel/zld/zld`
-[target.x86_64-apple-darwin]
-rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
+[lib]
+path = "src/lib.rs"
 
-[target.aarch64-apple-darwin]
-rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
+[[bin]]
+path = "src/main.rs"
+name = "zero2prod"
 
-# On Windows 
-# ```
-# cargo install -f cargo-binutils
-# rustup component add llvm-tools-preview
-# ```
-[target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "link-arg=-fuse-ld=lld"]
-
-[target.x86_64-pc-windows-gnu]
-rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+# Dev dependencies are used exclusively when running tests or examples
+# They do not get included in the final application binary!
+[dev-dependencies]
+reqwest = "0.12.23"
