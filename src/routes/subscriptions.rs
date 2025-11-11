@@ -1,20 +1,34 @@
+use actix_web::{HttpResponse, web};
 use serde::Deserialize;
-use actix_web::{web, HttpResponse};
+use sqlx::PgPool;
+use chrono::Utc;
+use uuid::Uuid;
 
 #[derive(Deserialize)]
 pub struct FormData {
     name: Option<String>,
-    email: Option<String>
+    email: Option<String>,
 }
 
 // isto je što se tiče performansa ocemo li vratit impl Responder ili HttpResponse
-pub async fn subscribe(form: web::Form<FormData>) -> HttpResponse {
-    println!("name {:?}", form.name.as_ref());
-    println!("mail {:?}", form.email.as_ref());
-    match (form.name.as_ref(), form.email.as_ref()) {
-        (Some(_), Some(_)) => HttpResponse::Ok().finish(),
-        (Some(_), None) => HttpResponse::BadRequest().body("missing email"),
-        (None, Some(_)) => HttpResponse::BadRequest().body("missing name"),
-        _ => HttpResponse::BadRequest().body("missing name and email")
-    }
+pub async fn subscribe(form: web::Form<FormData>, connection: web::Data<PgPool>) -> HttpResponse {
+    match sqlx::query!(
+        r#"
+        INSERT INTO subscriptions (id, email, name, subscribed_at)
+        VALUES ($1, $2, $3, $4)
+        "#,
+        Uuid::new_v4(),
+        form.email,
+        form.name,
+        Utc::now()
+    )
+        .execute(connection.get_ref())
+        .await
+            {
+                Ok(_) => HttpResponse::Ok().finish(),
+                Err(e) => {
+                    println!("Failed to execute query: {}", e);
+                    HttpResponse::BadRequest().finish()
+                }
+            }
 }
