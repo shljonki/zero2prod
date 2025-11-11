@@ -1,10 +1,10 @@
+use actix_web::{HttpResponse, web};
 use serde::Deserialize;
-use actix_web::{web, HttpResponse};
 
 #[derive(Deserialize)]
 pub struct FormData {
     name: Option<String>,
-    email: Option<String>
+    email: Option<String>,
 }
 
 // isto je što se tiče performansa ocemo li vratit impl Responder ili HttpResponse
@@ -15,6 +15,6 @@ pub async fn subscribe(form: web::Form<FormData>) -> HttpResponse {
         (Some(_), Some(_)) => HttpResponse::Ok().finish(),
         (Some(_), None) => HttpResponse::BadRequest().body("missing email"),
         (None, Some(_)) => HttpResponse::BadRequest().body("missing name"),
-        _ => HttpResponse::BadRequest().body("missing name and email")
+        _ => HttpResponse::BadRequest().body("missing name and email"),
     }
 }
