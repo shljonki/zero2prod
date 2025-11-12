@@ -17,15 +17,6 @@ pub fn run(listener: TcpListener, db_pool: PgPool) -> Result<Server, std::io::Er
                     ))
                     .to(subscribe),
             )
-            .route(
-                "/subscriptions",
-                web::post()
-                    .guard(guard::Header(
-                        "Content-Type",
-                        "application/x-www-form-urlencoded",
-                    ))
-                    .to(subscribe),
-            )
             .route("/", Route::new().guard(guard::Get()).to(greeting))
             .route("/{name}", web::get().to(greeting))
             .app_data(pg_connection_data.clone())

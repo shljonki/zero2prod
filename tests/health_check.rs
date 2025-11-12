@@ -32,7 +32,6 @@ async fn spawn_app() -> TestApp {
 // It also spares you from having to specify the `#[test]` attribute.
 //
 // You can inspect what code gets generated using
-// You can inspect what code gets generated using
 // `cargo expand --test health_check` (<- name of the test file)
 #[tokio::test]
 async fn health_check_works() {
