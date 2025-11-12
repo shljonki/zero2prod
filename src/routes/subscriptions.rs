@@ -32,3 +32,4 @@ pub async fn subscribe(form: web::Form<FormData>, connection: web::Data<PgPool>)
                 }
             }
 }
+

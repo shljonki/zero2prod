@@ -12,6 +12,8 @@ async fn main() -> std::io::Result<()> {
     // Otherwise call .await on our Server
     let address = format!("127.0.0.1:{}", configuration.application_port);
     let listener = TcpListener::bind(address).expect("unable to provide port for tcp listener");
+    let address = format!("127.0.0.1:{}", configuration.application_port);
+    let listener = TcpListener::bind(address).expect("unable to provide port for tcp listener");
     println!("port is: {}", listener.local_addr().unwrap().port());
     startup::run(listener, pg_connection)?.await
 }
