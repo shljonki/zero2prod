@@ -8,8 +8,6 @@ pub use greeting::*;
 pub use health_check::*;
 pub use subscriptions::*;
 
-
-
 // pub mod subscriptions; makes the module itself public, so other code can refer to it as crate::routes::subscriptions.
 
 // pub use subscriptions::*; re‑exports all the public items inside that module (functions, structs, etc.) at the level

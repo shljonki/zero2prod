@@ -1,21 +1,23 @@
 //! tests/health_check.rs
 use reqwest::Client;
-use sqlx::{PgPool};
+use sqlx::PgPool;
 use std::net::TcpListener;
 use zero2prod::{configuration, startup};
 
 pub struct TestApp {
     pub address: String,
-    pub db_pool: PgPool
+    pub db_pool: PgPool,
 }
 
 async fn spawn_app() -> TestApp {
-    let configuration = configuration::get_configuration().expect("Couldn't get configuration file");
+    let configuration =
+        configuration::get_configuration().expect("Couldn't get configuration file");
     let db_pool = PgPool::connect(&configuration.database.connection_string())
         .await
         .expect("Couldn't connect to postgres");
 
-    let listener = TcpListener::bind("127.0.0.1:0").expect("unable to provide port to TCP listener");
+    let listener =
+        TcpListener::bind("127.0.0.1:0").expect("unable to provide port to TCP listener");
     // We retrieve the port assigned to us by the OS
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{port}");
