@@ -68,7 +68,8 @@ done
 >&2 echo "Postgres is up and running on port ${DB_PORT} - running migrations now!"
 export DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}
 # Creates the database specified in your DATABASE_URL
-sqlx database create
+sqlx database create # ovo nam cak i ne treba jer smo kroz argumente dockeru rekli da napravi postgres database
+# sqlx migrate add create_subscriptions_table # ovo treba samo jednom pokrenut
 sqlx migrate run
 
 >&2 echo "Postgres has been migrated, ready to go!"

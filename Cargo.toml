@@ -11,6 +11,10 @@ serde = { version = "1.0.228", features = ["derive"] }
 config = "0.15.19"
 uuid = { version = "1", features = ["v4"] }
 chrono = "0.4.15"
+env_logger = "0.11.8"
+tracing = { version = "0.1.43", features = ["log"] }
+tracing-bunyan-formatter = "0.3"
+tracing-subscriber = { version = "0.3.22" , features = ["env-filter", "std"] }
 
 [dependencies.sqlx]
 version = "0.8.6"

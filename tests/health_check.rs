@@ -1,8 +1,9 @@
 //! tests/health_check.rs
 use reqwest::Client;
-use sqlx::PgPool;
 use std::net::TcpListener;
-use zero2prod::{configuration, startup};
+use sqlx::{Connection, PgConnection, PgPool, Executor};
+use zero2prod::{configuration::{self, DataBaseSettings}, startup};
+use uuid::Uuid;
 
 pub struct TestApp {
     pub address: String,
@@ -10,17 +11,17 @@ pub struct TestApp {
 }
 
 async fn spawn_app() -> TestApp {
-    let configuration =
+    let mut configuration =
         configuration::get_configuration().expect("Couldn't get configuration file");
-    let db_pool = PgPool::connect(&configuration.database.connection_string())
-        .await
-        .expect("Couldn't connect to postgres");
+    configuration.database.database_name = Uuid::new_v4().to_string();
+    let db_pool = configure_database(&configuration.database).await;
 
     let listener =
         TcpListener::bind("127.0.0.1:0").expect("unable to provide port to TCP listener");
     // We retrieve the port assigned to us by the OS
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{port}");
+
     let server = startup::run(listener, db_pool.clone()).expect("failed to bind address");
     // Launch the server as a background task
     // tokio::spawn returns a handle to the spawned future,
@@ -28,6 +29,28 @@ async fn spawn_app() -> TestApp {
     let _ = tokio::spawn(server);
     // return app address to caller
     TestApp { address, db_pool }
+}
+
+async fn configure_database(config_db: &DataBaseSettings) -> PgPool {
+    // Create database
+    let mut connection = PgConnection::connect(&config_db.connection_string_wo_db())
+        .await
+        .expect("Failed to connect to Postgres");
+    connection
+        .execute(format!(r#"CREATE DATABASE "{}";"#, config_db.database_name).as_str())
+        .await
+        .expect("Failed to create database.");
+
+    // Migrate database
+    let connection_pool = PgPool::connect(&config_db.connection_string())
+        .await
+        .expect("Failed to connect to Postgres.");
+    sqlx::migrate!("./migrations")
+        .run(&connection_pool)
+        .await
+        .expect("Failed to migrate the database");
+
+    connection_pool
 }
 
 // `tokio::test` is the testing equivalent of `tokio::main`.
@@ -39,12 +62,14 @@ async fn spawn_app() -> TestApp {
 async fn health_check_works() {
     let test_app = spawn_app().await;
     let app_address = test_app.address;
+
     let client = Client::new();
     let response = client
         .get(&format!("{app_address}/health_check"))
         .send()
         .await
         .expect("failed to execute request");
+
     assert!(response.status().is_success());
     assert_eq!(Some(0), response.content_length());
 }
@@ -98,7 +123,7 @@ async fn subscribe_returns_a_400_for_invalid_form_data() {
         assert_eq!(
             400,
             response.status().as_u16(),
-            "app DID NOT fail with 500 when payload was {}",
+            "app DID NOT fail with 400 when payload was {}",
             error_msg
         );
     }
