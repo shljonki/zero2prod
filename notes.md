@@ -82,4 +82,10 @@ Chapter 4 - Observability
 * definirali smo Subscribera, u nasem slucaju Registry jer nam je trebo zbog BunyanFormatterLayera, pa smo
   na taj Registry/Subscribera dodali Layere i na postavili tog subscribera kao defaultnog za traceanje
 -> 5.8
-* Log Tracer
+* kad god se dogodi tracing event, triggera se log record pa ga logger iz log cratea pokupi, no obrnuto
+  kada log crate ide nesto loggirat, ne triggera se tracing event, pa koristimo tracing_log crate.
+* LogTracer je struktura koja implementira log::Log trait (vidi 3.3 gore) na način da consumea
+  Record (to je payload nekog loga) i pretvara ga u tracing::Event
+-> 5.9
+* cargo-udeps je crate za micanje Unused DEPendeciesa
+-> 5.11
