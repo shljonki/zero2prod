@@ -1,9 +1,27 @@
 //! tests/health_check.rs
 use reqwest::Client;
-use std::net::TcpListener;
+use secrecy::ExposeSecret;
+use std::{env, net::TcpListener};
 use sqlx::{Connection, PgConnection, PgPool, Executor};
-use zero2prod::{configuration::{self, DataBaseSettings}, startup};
+use zero2prod::{configuration::{self, DataBaseSettings}, startup, telemetry};
 use uuid::Uuid;
+use once_cell::sync::Lazy;
+
+static TRACING: Lazy<()> = Lazy::new(||{
+    // setup logging for spawn app
+    // trace debug info warn error
+    let default_trace_name: String = "spawn_app".into();
+    let default_level: String = "info".into();
+
+    if env::var("RUST_LOG").is_ok() {
+        //get subscriber for tracing
+        let subscriber = telemetry::get_subscriber(default_trace_name, default_level, std::io::stdout);
+        telemetry::init_subscriber(subscriber);
+    } else {
+        let subscriber = telemetry::get_subscriber(default_trace_name, default_level, std::io::sink);
+        telemetry::init_subscriber(subscriber);
+    }
+});
 
 pub struct TestApp {
     pub address: String,
@@ -11,29 +29,31 @@ pub struct TestApp {
 }
 
 async fn spawn_app() -> TestApp {
-    let mut configuration =
-        configuration::get_configuration().expect("Couldn't get configuration file");
+    Lazy::force(&TRACING);
+
+    //configure database from config file
+    let mut configuration = configuration::get_configuration().expect("Couldn't get configuration file");
     configuration.database.database_name = Uuid::new_v4().to_string();
     let db_pool = configure_database(&configuration.database).await;
 
-    let listener =
-        TcpListener::bind("127.0.0.1:0").expect("unable to provide port to TCP listener");
-    // We retrieve the port assigned to us by the OS
+    //let OS choose port for app and bind listener to it
+    let listener = TcpListener::bind("127.0.0.1:0").expect("unable to provide port to TCP listener");
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{port}");
 
-    let server = startup::run(listener, db_pool.clone()).expect("failed to bind address");
     // Launch the server as a background task
     // tokio::spawn returns a handle to the spawned future,
     // but we have no use for it here, hence the non-binding let
+    let server = startup::run(listener, db_pool.clone()).expect("failed to bind address");
     let _ = tokio::spawn(server);
+
     // return app address to caller
     TestApp { address, db_pool }
 }
 
 async fn configure_database(config_db: &DataBaseSettings) -> PgPool {
     // Create database
-    let mut connection = PgConnection::connect(&config_db.connection_string_wo_db())
+    let mut connection = PgConnection::connect(&config_db.connection_string_wo_db().expose_secret())
         .await
         .expect("Failed to connect to Postgres");
     connection
@@ -42,7 +62,7 @@ async fn configure_database(config_db: &DataBaseSettings) -> PgPool {
         .expect("Failed to create database.");
 
     // Migrate database
-    let connection_pool = PgPool::connect(&config_db.connection_string())
+    let connection_pool = PgPool::connect(&config_db.connection_string().expose_secret())
         .await
         .expect("Failed to connect to Postgres.");
     sqlx::migrate!("./migrations")
