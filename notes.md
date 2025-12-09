@@ -32,22 +32,22 @@
 - [TOC](#toc)
 - [Chapter 3 - How To Bootstrap A Rust Web API From Scratch](#chapter-3---how-to-bootstrap-a-rust-web-api-from-scratch)
 - [Chapter 3.5 - HTML forms, Databases, Integration tests](#chapter-35---html-forms-databases-integration-tests)
-  - [2.3](#23)
-  - [3.2](#32)
-  - [3.6](#36)
+  - [2.3 Parsing Form Data From A POST Request - FromRequest, Serde](#23-parsing-form-data-from-a-post-request---fromrequest-serde)
+  - [3.2 sqlx i config crateovi, pub mod i pub use](#32-sqlx-i-config-crateovi-pub-mod-i-pub-use)
+  - [3.6 slanje web::Data u app, PgConnect i PgPool](#36-slanje-webdata-u-app-pgconnect-i-pgpool)
 - [Chapter 4 - Telemetry](#chapter-4---telemetry)
-  - [3.3](#33)
-  - [5](#5)
-  - [5.5](#55)
-  - [5.7](#57)
-  - [5.8](#58)
-  - [5.9](#59)
-  - [5.11](#511)
-  - [5.12](#512)
-  - [5.13](#513)
-  - [5.14](#514)
+  - [3.3 Logging - The Facade Pattern](#33-logging---the-facade-pattern)
+  - [5 Structured Logging - tracing, span i event](#5-structured-logging---tracing-span-i-event)
+  - [5.5 tracing crate's Subscriber i tracing-subscriber (Layer)](#55-tracing-crates-subscriber-i-tracing-subscriber-layer)
+  - [5.7 tracing\_bunyan\_formatter](#57-tracing_bunyan_formatter)
+  - [5.8 tracing crate's log feature vs tracing-log crate](#58-tracing-crates-log-feature-vs-tracing-log-crate)
+  - [5.9 Removing Unused Dependencies](#59-removing-unused-dependencies)
+  - [5.11 Logs For Integration Tests - stdio, sink](#511-logs-for-integration-tests---stdio-sink)
+  - [5.12 Cleaning Up Instrumentation Code - tracing::instrument](#512-cleaning-up-instrumentation-code---tracinginstrument)
+  - [5.13 Protect Your Secrets - secrecy](#513-protect-your-secrets---secrecy)
+  - [5.14 Request Id](#514-request-id)
 - [Chapter 5 - Going Live](#chapter-5---going-live)
-  - [](#)
+  - [3.5 Networking](#35-networking)
 
 # [Chapter 3 - How To Bootstrap A Rust Web API From Scratch][Chapter 3]
 * [`actix-web` crate] - server, stvori app, middleware itd za posluzivanje clienta, tj. primanje http requestova (REST API)
@@ -56,7 +56,7 @@
   random port se dobije pomocu 127.0.0.1:0
 
 # [Chapter 3.5 - HTML forms, Databases, Integration tests][Chapter 3.5]
-## 2.3
+## 2.3 Parsing Form Data From A POST Request - FromRequest, Serde
 * `web::Form` je extractor URL encoded payloada
 * `web::FromRequest::from_request()` fju actix-web poziva nad svakim argumentom nekog handlera
   nekog routa (subscribe handler npr) sto znaci da svaki argument (recimo `web::Form<FormData>`)
@@ -65,14 +65,14 @@
 * [`Serde` crate][serde crate] - da mozemo pretvarat random data format <rust data type.
   koristi neki svoj serde data model kao posrednika izmedu `Serialize` i `Serializer`
 * [decrusting Serde](https://www.youtube.com/watch?v=BI_bHCGRgMY)
-## 3.2
+## 3.2 sqlx i config crateovi, pub mod i pub use
 * [`sqlx` crate] - `PgConnection` struct je entrypoint za spojit se na Postgres database, tj. konekcija na DB.
 * sa mod dodamo neki module isto kao sto crate dodajemo u cargo.toml, sa use koristimo neku fju iz modula/cratea
   sa pub mod taj mod napravimo javnim da ga i ostali (recimo parrenti) mogu koristit
   sa pub use fju napravimo javnom da je drugi (recimo parrenti) mogu koristit
   i mod i fja/struktura/itd u modu moraju biti public da bi je parrent mogo koristit
 * [`config` crate] - swiss army knife za environment variables, configuration files, etc.
-## 3.6
+## 3.6 slanje web::Data<T> u app, PgConnect i PgPool
 * `web::Data<T>` - wraps anything into `Arc<T>`
   ovo je dobar trik ako imamo bilo što što nije `Cloneable` . Ako wrappamo u `Arc<T>` postaje `Cloneable`
 * za razliku od `web::Form`, actix-web neće automatski deserializirat `web::Data<T>` iz `HttpRequesta`
@@ -94,7 +94,7 @@
   ili ce pricekati da se neka stara oslobodi. Tako da je `PgPool` skup različitih konekcija na isti DB.
 
 # [Chapter 4 - Telemetry][Chapter 4]
-## 3.3
+## 3.3 Logging - The Facade Pattern
 * `Logger` je struktura u koju se zapisuju logovi i kaj sve ne, no ona mora implementirat `Log` trait
   da bi išta loggala
 * [`log` crate] je fasada, tj. API koji nam kaze koje sve fje `Log` trait mora imat. u crateu su
@@ -105,22 +105,24 @@
   no ne koristimo nju već koristimo `middleware::Logger` i `Log` trait iz [`env_logger` crate]a.
   koji `Log` trait ćemo koristiti kazemo preko `set_logger` fje u `log` crateu. u nasem slucaju `set_logger`
   se poziva u ovom initu na kraju `env_logger::Builder::from_env(Env::default()).init();`
-## 5
+## 5 Structured Logging - tracing, span i event
 * sa `log` crateom je bio problem kaj ako imamo paralelne procese, ne znamo koj log je čiji, pa smo dodali
   request id na njih. Problem je što middleware `Log` nije svjestan tog request_id-a pa ga nemremo
   poslati van aplikacije.
 * tu dolazi `tracing` crate koji je napredniji `log` crate jer ne logira u samo jednom trenutku (event) nego
   cijeli period (span) od kad mu kazemo da starta pa do kraja fje ili dok ga ne ugasimo.
 * span.enter je za single threded/proces fje, za future je .instrument(span)
-## 5.5
+## 5.5 tracing crate's Subscriber i tracing-subscriber (Layer)
 * `Subscriber` trait u [`tracing` crate]u je isto što i `Log` trait u [`log` crate]u. tj. On je fasada
   koja opisuje koje fje moramo definirat za span telemetriju. implementaciju `Subscriber`a uzmemo iz jednog od javno
   dostupnih crateova, recimo [`tracing-bunyan-formatter` crate]a.
 * `Subscriber` trait sadrzi sve potrebno za skupljanje traceva pa tako i kreiranje span ID-a. Pošto svaki
   span mora imat točno jedan dodjeljen ID, ne mozemo imati više subscribera za jedan span. Zato koristimo
-  `Layer` trait, koji ima ulogu observera. implementacija `Layer` traita pokazuje sa kojim Subscriberima se
-  može koristit.
-## 5.7
+  `tracing_subscriber::Layer` trait, koji ima ulogu observera. implementacija `Layer` traita pokazuje sa
+  kojim Subscriberima se može koristit.
+* `Subscriber`a mozemo dodjeliti nekom spanu/loggeru pomocu `tracing::WithSubscriber::with_subscriber()` fje.
+  `tracing::subscriber::set_global_default` isto negdje u pozadini poziva tu fju brijem.
+## 5.7 tracing_bunyan_formatter
 * iskombinirat cemo 3 layera. oni nesto nadodaju na `Subscriber` trait. 
   [`tracing_subscriber::filter::EnvFilter`][`tracing_subscriber` crate] je log level
   [`tracing_bunyan_formatter::JsonStorageLayer`][`tracing-bunyan-formatter` crate] spremi metadatu
@@ -132,17 +134,17 @@
   spanova, koji spanovi su aktivni koji ne. Registry takoder moze i user-datu spremat, koja se naziva extensions.
 * definirali smo `Subscribera`, u nasem slucaju `Registry` jer nam je trebo zbog `BunyanFormatterLayera`, pa smo
   na taj `Registry`/`Subscribera` dodali Layere i na postavili tog subscribera kao defaultnog za traceanje
-## 5.8
+## 5.8 tracing crate's log feature vs tracing-log crate
 * kad god se dogodi tracing event ili span, triggera se log record pa ga logger iz [`log` crate]a pokupi. To nam
   je omogućio `log` feature u `tracing` crateu. no obrnuto, kada `log` crate ide nesto loggirat, ne triggera se tracing
   event, pa koristimo [`tracing-log` crate].
 * `LogTracer` je struktura koja implementira `log::Log` trait (vidi [3.3](#33) gore) na način da consumea
   `Record` (to je payload nekog loga) i pretvara ga u `tracing::Event`
-* tracing's feature log: tracing event -> log record
-* tracing-log crate: log record -> tracing event
-## 5.9
+* `tracing` crate's log feature: tracing event -> log record
+* `tracing-log` crate: log record -> tracing event
+## 5.9 Removing Unused Dependencies
 * [`cargo-udeps` crate] sluzi za micanje Unused DEPendeciesa
-## 5.11
+## 5.11 Logs For Integration Tests - stdio, sink
 * u testovima imamo problem što svaki test poziva `spawn_app()` i onda svaki put ispocetka postaavljaju
   defaultni `Log` i `Subscriber`, što zapravo ne možemo radit, pa nam program počne paničarit. Zato koristimo
   once-cell crate koji ima `Lazy` strukturu koja nam omogućava da nešto zapišemo samo jednom a kod ostalih pokušaja
@@ -151,23 +153,31 @@
   `Sink: for<'a> MakeWriter<'a> + Send  + Sync  + 'static` tj. nesto sto implementira MakeWriter sto su
   `std::io::{sink, stdout}` pa onda ovisno o tome je li `TEST_LOG` postavljen ili ne, ispisujemo traceve na stdout
   ili ih bacimo/sinkamo pomocu `std::io::sink`
-## 5.12
+## 5.12 Cleaning Up Instrumentation Code - tracing::instrument
 * mozemo stavit `[tracing::instrument]` macro na pocetak fje, pa ce se napravit span svaki put kad udemo u tu fju
-## 5.13
+## 5.13 Protect Your Secrets - secrecy
 * [`secrecy` crate] nam zabrani da printamo ili koristimo stvari koje smo wrappali u `SecretBox` tako
   što `Display` trait ne implementira a `Debug` implementira tako da umjesto contenta napiše REDACTED
 * sakrili smo password iz config filea od DB, a pošto `connection_string()` sadrzi password, i njega smo stavili u
   `SecretBox`
-## 5.14
+## 5.14 Request Id
 * `middleware::Logger` ne stavi request_id kad dode HTTP request, pa koristimo drugi novi - `TracingLogger` iz
   [`tracing-actix-web` crate]a. taj request_id se propagira dalje na pod spanove.
 * u `spawn_app()` namjestimo subscribera koji će skupljat eventove i spanove, a u `run()` kod rađenja nove App,
   definiramo loggera koji će logove pretvarat u eventove i spanove. u `subscribe()` pomoću #instrument macroa kazemo
   da hocemo novi span svaki put kad udemo u tu i `insert_subscriber()` fje
-* `spawn_app()`: namjesti defaultnog subscribera i defaultnog loggera `LogTracer` -> `run()`: namjesti da `TracingLogger` triggera
-  spanove za svaki HTTP request -> `subscribe()`: #instrument triggera spanove
+* `spawn_app()`: namjesti defaultnog subscribera i defaultnog loggera `LogTracer` -> `run()`: namjesti da `TracingLogger`
+  triggera spanove za svaki HTTP request -> `subscribe()`: #instrument triggera spanove
   -> `insert_subscriber()`: #instrument triggera spanove
 * a da bi `TracingLogger` mogao triggerat eventove i spanove, to smo omogucili pomocu [`tracing-log` crate]a
 
 # [Chapter 5 - Going Live][Chapter 5]
-## 
+* buildamo image (recept koji je u Dockerfile.dockerfile)
+  * `docker build --tag zero2prod --file Dockerfile .`
+* `cargo build` ima pristup našem sqlu, no docker nema pa mu moramo cacheat sqlx query metadata file. 
+* ako nam fali `DATABASE_URL` ili stavimo `SQLX_OFFLINE true` u recept, compile-time verifikacija je ograničena da
+  čita iz cached query metadata filea u `.sqlx/`
+* generiramo query metadata file za offline compile-time verifikaciju. moramo ga pointat na library jer nam se tamo
+* nalaze sql querii
+  * `cargo sqlx prepare -- --lib`
+## 3.5 Networking

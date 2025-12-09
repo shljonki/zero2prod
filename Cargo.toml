@@ -29,7 +29,7 @@ features = [
     "postgres", 
     "uuid", 
     "chrono", 
-    "migrate"
+    "migrate",
 ]
 
 [lib]
