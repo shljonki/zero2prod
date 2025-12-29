@@ -48,6 +48,9 @@
   - [5.14 Request Id](#514-request-id)
 - [Chapter 5 - Going Live](#chapter-5---going-live)
   - [3.5 Networking](#35-networking)
+  - [3.8.1 Docker image size](#381-docker-image-size)
+  - [3.8.2 Caching for rust docker builds](#382-caching-for-rust-docker-builds)
+  - [4.0 Digital Ocean](#40-digital-ocean)
 
 # [Chapter 3 - How To Bootstrap A Rust Web API From Scratch][Chapter 3]
 * [`actix-web` crate] - server, stvori app, middleware itd za posluzivanje clienta, tj. primanje http requestova (REST API)
@@ -92,6 +95,8 @@
 * `PgPool` je pool konekcija na postgres koje također imaju interior mutability no malo drugačiji. Ako
   postoji slobodna `PgConnect` konekcija sqlx ce posudit nju a ako ne postoji, stvorit će novu (ne istu, drugu)
   ili ce pricekati da se neka stara oslobodi. Tako da je `PgPool` skup različitih konekcija na isti DB.
+* dakle nasa aplikacija koja nije u docker containeru se spaja na databazu koja je u docker containeru koristeci
+  `postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}` 
 
 # [Chapter 4 - Telemetry][Chapter 4]
 ## 3.3 Logging - The Facade Pattern
@@ -172,12 +177,50 @@
 * a da bi `TracingLogger` mogao triggerat eventove i spanove, to smo omogucili pomocu [`tracing-log` crate]a
 
 # [Chapter 5 - Going Live][Chapter 5]
-* buildamo image (recept koji je u Dockerfile.dockerfile)
-  * `docker build --tag zero2prod --file Dockerfile .`
-* `cargo build` ima pristup našem sqlu, no docker nema pa mu moramo cacheat sqlx query metadata file. 
+* buildamo image (recept koji je u Dockerfile.dockerfile). image je closed environment koj ne vidi nis van sebe,
+  osim preko naredby COPY i ADD ili ako stavimo network.
+  * `docker build --tag zero2prod --file dockerfile .`
+* `cargo build` ima pristup našem sqlu koj se nalazi u containeru `subs_docker`, no novi image koji buildamo nema pristup
+  tom containeru, pa unutar tog novog imagea moramo napraviti offline sql bazu kako bi rust mogo u compile timeu provjerit
+  sql sintaksu od onih par naredbi tipa dok spremamo usera u DB. mogli bi i dat flah --network imageu koj buildamo, da se
+  poveze s drugim containerom ali neki problemi sa OSom nesto nije reproducibilno blabla pa koristimo sqlx offline mode
 * ako nam fali `DATABASE_URL` ili stavimo `SQLX_OFFLINE true` u recept, compile-time verifikacija je ograničena da
   čita iz cached query metadata filea u `.sqlx/`
 * generiramo query metadata file za offline compile-time verifikaciju. moramo ga pointat na library jer nam se tamo
-* nalaze sql querii
+  nalaze sql querii
   * `cargo sqlx prepare -- --lib`
+* `connect_lazy()` ce se pokusat spojit na db samo prvi put. ako pokusavamo vise puta dobijemo error jer se vise puta
+  pokusavamo spojiti na isti port databasea
 ## 3.5 Networking
+* pomocu -p flaga kazemo docker containeru koje portove vanjski svijet moze koristit
+  * `docker run --rm -p 8000:8000 --net postgres_zero2prod --name zero2prod_app -e PGPORT="5432" -e PGHOST="postgres" zero2prod:latest`
+  * `docker run --rm -p 8000:8000 --name zero2prod_app zero2prod:latest`
+* napravili smo 2 .yaml config filea u koje smo razdvojili configuraciju izmedu lokalne verzije aplikacije (za development)
+  i produkcijse verzije. fileovi su `local.yaml` i `production.yaml`
+* dodali smo Envirnoment enum i na njemu implementirali `TryFrom` trait i `as_str()` fje u `configuration.rs`
+* `docker inspect zero2prod` izlista puno korisnih stvari o containeru
+## 3.8.1 Docker image size
+* kako bi smanjili velicinu imagea koji buildamo, makli smo nepotrebne fileove pomocu `.dockerignore` filea, pomocu 
+  docker multistaginga smo maknuli build fileove nakon builda
+* `docker images zero2prod`
+* useful links
+  * [private docker networks](https://tomd.xyz/why-containers-wont-talk/)
+  * [strip simbols](https://github.com/johnthagen/min-sized-rust#strip-symbols-from-binary)
+  * [rust-musl-builder](https://github.com/emk/rust-musl-builder)
+  * [rust-docker image](https://github.com/rust-lang/docker-rust)
+## 3.8.2 Caching for rust docker builds
+* RUN, COPY i ADD komande svaka naprave novi layer. Layer je diff izmedu stanja prije izvrsenja komande i nakon izvrsenja komande
+* Docker ako vidi da je stanje prije izvrsenja komande isto ko u proslom buildu i da se komanda nije promjenila, nece ponovno
+  izvrsavat komandu vec ce samo iskopirat spremljeni layer. tako mozemo ubrzati buildanje. To takoder znaci da nam je poredak
+  komandi bitan kako bi što manje promjena po fileovima radili tako jer ćemo onda češće imati isto stanje na početku komandi i 
+  tako češće triggerat kopiranje layera. Sve što se tiče fileova koji se često mijenjaju, npr. source code bi se trebalo što
+  kasnije pojavit u docker receptu. generalni redoslijed je:
+  * kopiraj recipe (.lock ili slicno) fileove
+  * izbuildaj dependenciese
+  * kopiraj source code
+* na kraju builda u docker containeru se nalazi samo runtime stage, sve prije se brise
+* maknuli smo rust iz runtimea zato kaj nam ne trebaju njegovi cargo, rustc i ostatak toolchaina. dovoljno nam je stavit neki
+  mali OS tipa `debian:bookworm-slim` koj ima sve potrebno za runnanje programa, tipa libc6
+## 4.0 Digital Ocean
+* napravili smo `specs.yaml` file. [tu su svi flagovi](https://docs.digitalocean.com/products/app-platform/reference/app-spec/)
+* 

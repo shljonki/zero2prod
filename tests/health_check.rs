@@ -52,7 +52,7 @@ async fn spawn_app() -> TestApp {
 }
 
 async fn configure_database(config_db: &DataBaseSettings) -> PgPool {
-    // Create database
+    // Connect to docker container and create sqlx database
     let mut connection = PgConnection::connect(&config_db.connection_string_wo_db().expose_secret())
         .await
         .expect("Failed to connect to Postgres");
@@ -61,7 +61,7 @@ async fn configure_database(config_db: &DataBaseSettings) -> PgPool {
         .await
         .expect("Failed to create database.");
 
-    // Migrate database
+    // Connect to docker container and migrate database
     let connection_pool = PgPool::connect(&config_db.connection_string().expose_secret())
         .await
         .expect("Failed to connect to Postgres.");
@@ -97,11 +97,10 @@ async fn health_check_works() {
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
     let test_app = spawn_app().await;
-    let client = reqwest::Client::new();
 
     // Act
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-    let response = client
+    let response = reqwest::Client::new()
         .post(&format!("{}/subscriptions", &test_app.address))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(body)

@@ -41,23 +41,24 @@ then
       -e POSTGRES_PASSWORD=${DB_PASSWORD} \
       -e POSTGRES_DB=${DB_NAME} \
       -p "${DB_PORT}":5432 \
-      --name subs_docker \
+      --name "subs_postgres" \
       -d postgres \
       postgres -N 1000
+      ## --net postgres_zero2prod \
 fi
 
 #example how to run pgadmin using Docker
-if [ -z "${SKIP_DOCKER}" ]; then
-    docker run \
-        -e PGADMIN_DEFAULT_EMAIL=admin@example.com \
-        -e PGADMIN_DEFAULT_PASSWORD=securepass \
-        -p 5050:80 \
-        --name pgadmin4_visualizer \
-        -d dpage/pgadmin4
-fi
+#if [ -z "${SKIP_DOCKER}" ]; then
+#    docker run \
+#        -e PGADMIN_DEFAULT_EMAIL=admin@example.com \
+#        -e PGADMIN_DEFAULT_PASSWORD=securepass \
+#        -p 5050:80 \
+#        --name pgadmin4_visualizer \
+#        -d dpage/pgadmin4
+#fi
 
 echo "postgres IP for PgAdmin4 page on localhost:5050"
-echo "$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' subs_docker)"
+echo "$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' subs_postgres)"
 
 # Keep pinging Postgres until it's ready to accept commands
 until PGPASSWORD="${DB_PASSWORD}" psql -h "localhost" -U "${DB_USER}" -p "${DB_PORT}" -d "postgres" -c '\q'; do
