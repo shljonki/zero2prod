@@ -1,6 +1,8 @@
 use config;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
+use sqlx::{ConnectOptions, postgres::{PgConnectOptions, PgSslMode}};
+use tracing_log::log;
 
 #[derive(Deserialize)]
 pub struct Settings {
@@ -21,6 +23,7 @@ pub struct DataBaseSettings {
     pub username: String,
     pub password: SecretString,
     pub database_name: String,
+    pub require_ssl: bool
 }
 
 #[derive(PartialEq, Debug)]
@@ -50,18 +53,25 @@ impl TryFrom<String> for Environment {
 }
 
 impl DataBaseSettings {
-    pub fn connection_string(&self) -> SecretString {
-        format!(
-            "postgres://{}:{}@{}:{}/{}",
-            self.username, self.password.expose_secret(), self.host, self.port, self.database_name
-        ).into()
+    pub fn without_db(&self) -> PgConnectOptions {
+        let ssl_mode = if self.require_ssl {
+            PgSslMode::Require
+        } else {
+            PgSslMode::Prefer
+        };
+
+        PgConnectOptions::new()
+            .password(&self.password.expose_secret())
+            .username(&self.username)
+            .host(&self.host)
+            .port(self.port)
+            .ssl_mode(ssl_mode)
     }
 
-    pub fn connection_string_wo_db(&self) -> SecretString {
-        format!(
-            "postgres://{}:{}@{}:{}",
-            self.username, self.password.expose_secret(), self.host, self.port
-        ).into()
+    pub fn with_db(&self) -> PgConnectOptions {
+        self.without_db()
+            .log_statements(log::LevelFilter::Trace)
+            .database(&self.database_name)
     }
 }
 
@@ -73,9 +83,11 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         .unwrap_or_else(|_| "local".into())
         .try_into()
         .expect("Failed to parse APP_ENV.");
+
     if environment.eq(&Environment::Production) {
         tracing::warn!("stavio si production, bilo tko ti se moze spojit")
     }
+
     let env_filename = format!("{}.yaml", environment.as_str());
 
     let settings = config::Config::builder()

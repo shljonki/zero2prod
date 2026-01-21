@@ -33,7 +33,8 @@
 - [Chapter 3 - How To Bootstrap A Rust Web API From Scratch](#chapter-3---how-to-bootstrap-a-rust-web-api-from-scratch)
 - [Chapter 3.5 - HTML forms, Databases, Integration tests](#chapter-35---html-forms-databases-integration-tests)
   - [2.3 Parsing Form Data From A POST Request - FromRequest, Serde](#23-parsing-form-data-from-a-post-request---fromrequest-serde)
-  - [3.2 sqlx i config crateovi, pub mod i pub use](#32-sqlx-i-config-crateovi-pub-mod-i-pub-use)
+  - [3.4 Database Setup](#34-database-setup)
+  - [3.5 sqlx i config crateovi, pub mod i pub use](#35-sqlx-i-config-crateovi-pub-mod-i-pub-use)
   - [3.6 slanje web::Data u app, PgConnect i PgPool](#36-slanje-webdata-u-app-pgconnect-i-pgpool)
 - [Chapter 4 - Telemetry](#chapter-4---telemetry)
   - [3.3 Logging - The Facade Pattern](#33-logging---the-facade-pattern)
@@ -51,10 +52,11 @@
   - [3.8.1 Docker image size](#381-docker-image-size)
   - [3.8.2 Caching for rust docker builds](#382-caching-for-rust-docker-builds)
   - [4.0 Digital Ocean](#40-digital-ocean)
+  - [4.4 Connecting to DO postgres instance](#44-connecting-to-do-postgres-instance)
 
 # [Chapter 3 - How To Bootstrap A Rust Web API From Scratch][Chapter 3]
 * [`actix-web` crate] - server, stvori app, middleware itd za posluzivanje clienta, tj. primanje http requestova (REST API)
-* [`reqwest`][[`reqwest` crate]] - client, slanje http requestova na server putem REST API
+* [`reqwest` crate] - client, slanje http requestova na server putem REST API
 * `TCPListener` - da binda na random port u compiletimeu i proslijedi ga nasem programu,
   random port se dobije pomocu 127.0.0.1:0
 
@@ -65,15 +67,21 @@
   nekog routa (subscribe handler npr) sto znaci da svaki argument (recimo `web::Form<FormData>`)
   mora implementirat `FromRequest` trait jer je u njemu `from_request()` pa ce from_request()` pokusat
   deserializirat request body od `HttpRequesta` u zeljenu strukturu recimo FormData
-* [`Serde` crate][serde crate] - da mozemo pretvarat random data format <rust data type.
+* [`Serde` crate] - da mozemo pretvarat random data format <rust data type.
   koristi neki svoj serde data model kao posrednika izmedu `Serialize` i `Serializer`
 * [decrusting Serde](https://www.youtube.com/watch?v=BI_bHCGRgMY)
-## 3.2 sqlx i config crateovi, pub mod i pub use
+## 3.4 Database Setup
+* DB ima scheme ili nekoliko njih - kao folderi, jedino kaj se ne mogu nestat. scheem sadrze tablice, data types,
+  functions and operators. vise razlicitih schema moze koristiti istu tablicu, tako vise razlicitih usera istog
+  DB mogu pristupiti istoj tablici bez da se medusobno ometaju.
+* da bi dodali tablicu u DB, moramo tom DB promjenit schemu tj. napraviti `migration` 
+* `docker container ls -a` izlista sve containere i onda `docker start` *`ime_containera`*
+## 3.5 sqlx i config crateovi, pub mod i pub use
 * [`sqlx` crate] - `PgConnection` struct je entrypoint za spojit se na Postgres database, tj. konekcija na DB.
-* sa mod dodamo neki module isto kao sto crate dodajemo u cargo.toml, sa use koristimo neku fju iz modula/cratea
-  sa pub mod taj mod napravimo javnim da ga i ostali (recimo parrenti) mogu koristit
-  sa pub use fju napravimo javnom da je drugi (recimo parrenti) mogu koristit
-  i mod i fja/struktura/itd u modu moraju biti public da bi je parrent mogo koristit
+* sa `mod` dodamo neki module isto kao sto crate dodajemo u cargo.toml, sa `use` koristimo neku fju iz modula/cratea
+* sa `pub mod` taj mod napravimo javnim da ga i ostali (recimo parrenti) mogu koristit.
+* sa `pub use` fju napravimo javnom da je drugi (recimo parrenti) mogu koristit.
+  * i mod i fja/struktura/itd u modu moraju biti public da bi je parrent mogo koristit.
 * [`config` crate] - swiss army knife za environment variables, configuration files, etc.
 ## 3.6 slanje web::Data<T> u app, PgConnect i PgPool
 * `web::Data<T>` - wraps anything into `Arc<T>`
@@ -85,7 +93,7 @@
   Zato aplikacija uvijek mora imati vlasništvo nad podacima pa `PgConnection` koji šaljemo putem App::app_data
   mora biti `Cloneable` pa koristimo `web::Data<T>`
 * .execute koji koristi tu konekciju (`PgConnect`) u subscription.rs zahtjeva podatke koji implementiraju
-  Executor: `Send`  + Debug pa tako nesmijemo koristiti `&PgConnect` (nije `Send` ) nego samo &mut `PgConnect`.
+  `Executor: Send + Debug` pa tako nesmijemo koristiti `&PgConnect` (nije `Send`) nego samo &mut `PgConnect`.
   To je zato što nesmijemo imati više konkurentnih istih konekcija kako si nebi paralelno prebrisali podatke.
   &mut je unique identifier po dizajnu compilera (smije postojati samo jedna mutable referenca na istu
   vrijednost u cijelom programu) pa zato &mut `PgConnect` u teoriji smije no `web::Data<T>` preko kojeg
@@ -97,6 +105,9 @@
   ili ce pricekati da se neka stara oslobodi. Tako da je `PgPool` skup različitih konekcija na isti DB.
 * dakle nasa aplikacija koja nije u docker containeru se spaja na databazu koja je u docker containeru koristeci
   `postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}` 
+* u `health_check.rs` koristimo nad `DatabaseSettings` `with_db` i `without_db`
+  * da bi stvorili DB koristimo `without_db` jer jos nemamo DB
+  * a da bi se spojili na taj DB i migrirali DB koristimo `with_db`
 
 # [Chapter 4 - Telemetry][Chapter 4]
 ## 3.3 Logging - The Facade Pattern
@@ -163,8 +174,8 @@
 ## 5.13 Protect Your Secrets - secrecy
 * [`secrecy` crate] nam zabrani da printamo ili koristimo stvari koje smo wrappali u `SecretBox` tako
   što `Display` trait ne implementira a `Debug` implementira tako da umjesto contenta napiše REDACTED
-* sakrili smo password iz config filea od DB, a pošto `connection_string()` sadrzi password, i njega smo stavili u
-  `SecretBox`
+* sakrili smo password iz config filea od DB, a pošto `connection_string()` (promijenjeno u `without_db()`) sadrzi password,
+  i njega smo stavili u `SecretBox`
 ## 5.14 Request Id
 * `middleware::Logger` ne stavi request_id kad dode HTTP request, pa koristimo drugi novi - `TracingLogger` iz
   [`tracing-actix-web` crate]a. taj request_id se propagira dalje na pod spanove.
@@ -177,12 +188,12 @@
 * a da bi `TracingLogger` mogao triggerat eventove i spanove, to smo omogucili pomocu [`tracing-log` crate]a
 
 # [Chapter 5 - Going Live][Chapter 5]
-* buildamo image (recept koji je u Dockerfile.dockerfile). image je closed environment koj ne vidi nis van sebe,
+* buildamo image (recept koji je u `dockerfile`). image je closed environment koj ne vidi nis van sebe,
   osim preko naredby COPY i ADD ili ako stavimo network.
   * `docker build --tag zero2prod --file dockerfile .`
-* `cargo build` ima pristup našem sqlu koj se nalazi u containeru `subs_docker`, no novi image koji buildamo nema pristup
+* `cargo build` ima pristup našem sqlu koj se nalazi u containeru `subs_postgres`, no novi image koji buildamo nema pristup
   tom containeru, pa unutar tog novog imagea moramo napraviti offline sql bazu kako bi rust mogo u compile timeu provjerit
-  sql sintaksu od onih par naredbi tipa dok spremamo usera u DB. mogli bi i dat flah --network imageu koj buildamo, da se
+  sql sintaksu od onih par naredbi tipa dok spremamo usera u DB. mogli bi i dat flag --network imageu koj buildamo, da se
   poveze s drugim containerom ali neki problemi sa OSom nesto nije reproducibilno blabla pa koristimo sqlx offline mode
 * ako nam fali `DATABASE_URL` ili stavimo `SQLX_OFFLINE true` u recept, compile-time verifikacija je ograničena da
   čita iz cached query metadata filea u `.sqlx/`
@@ -196,12 +207,12 @@
   * `docker run --rm -p 8000:8000 --net postgres_zero2prod --name zero2prod_app -e PGPORT="5432" -e PGHOST="postgres" zero2prod:latest`
   * `docker run --rm -p 8000:8000 --name zero2prod_app zero2prod:latest`
 * napravili smo 2 .yaml config filea u koje smo razdvojili configuraciju izmedu lokalne verzije aplikacije (za development)
-  i produkcijse verzije. fileovi su `local.yaml` i `production.yaml`
+  i produkcijske verzije. fileovi su `local.yaml` i `production.yaml`
 * dodali smo Envirnoment enum i na njemu implementirali `TryFrom` trait i `as_str()` fje u `configuration.rs`
 * `docker inspect zero2prod` izlista puno korisnih stvari o containeru
 ## 3.8.1 Docker image size
 * kako bi smanjili velicinu imagea koji buildamo, makli smo nepotrebne fileove pomocu `.dockerignore` filea, pomocu 
-  docker multistaginga smo maknuli build fileove nakon builda
+  docker multi-staginga smo maknuli build fileove nakon builda
 * `docker images zero2prod`
 * useful links
   * [private docker networks](https://tomd.xyz/why-containers-wont-talk/)
@@ -223,4 +234,8 @@
   mali OS tipa `debian:bookworm-slim` koj ima sve potrebno za runnanje programa, tipa libc6
 ## 4.0 Digital Ocean
 * napravili smo `specs.yaml` file. [tu su svi flagovi](https://docs.digitalocean.com/products/app-platform/reference/app-spec/)
+* `doctl apps create --spec specs.yaml` za napraviti novi app
+## 4.4 Connecting to DO postgres instance
+* Hocemo napraviti da komunikacija izmedu web browsera i servera bude enkriptirana, to mozemo pomocu SSL-a
+* pomocu `PgSsl` enuma mozemo postaviti kolko striktno zahtjevamo SSL
 * 

@@ -7,8 +7,3 @@ database:
   username: "postgres"
   password: "password"
   database_name: "newsletter"
-  instance_count: 1
-  instance_size_slug: basic-xxs
-  #sto sve saljemo ovoj komponenti tj. appu u nasem slucaju. dakle sve
-  routes:
-    - path: /

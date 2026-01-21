@@ -1,4 +1,3 @@
-use secrecy::ExposeSecret;
 use sqlx::{postgres::PgPoolOptions};
 use std::{net::TcpListener, time::Duration};
 use zero2prod::{configuration, startup, telemetry};
@@ -14,9 +13,9 @@ async fn main() -> std::io::Result<()> {
 
     // connect to database inside container
     let pg_connection = PgPoolOptions::new()
-        .acquire_timeout(Duration::from_secs(2))
-        .connect_lazy(configuration.database.connection_string().expose_secret())
-        .expect("Couldn't connect to database");
+        .acquire_timeout(Duration::from_secs(30))
+        .max_connections(5)
+        .connect_lazy_with(configuration.database.with_db());
 
     // set up app address which are allowed to send requests to our app
     let address = format!("{}:{}", configuration.application.host, configuration.application.port);

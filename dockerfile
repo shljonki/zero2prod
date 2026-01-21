@@ -1,16 +1,18 @@
+# 1st kayer
 FROM lukemathwalker/cargo-chef:latest-rust-1.91.1 AS chef
 #svim chefovima ce postaviti /app kao workdir
 WORKDIR /app
 # Install the required system dependencies for our linking configuration
 RUN apt update && apt install lld clang -y
 
+# 2nd layer
 FROM chef AS planner
 COPY . .
 # Compute a lock-like file for our project
 # vrti se u /app jer je tako postavljeno u chef koraku
 RUN cargo chef prepare --recipe-path recipe.json
 
-# Builder stage
+# Builder stage // 3rd layer
 FROM chef AS builder
 #isto smo u /appu, kopiramo iz /app (absolute path) u /app (relative path)
 COPY --from=planner /app/recipe.json recipe.json
@@ -23,7 +25,7 @@ ENV SQLX_OFFLINE=true
 #ovo je isto u /app
 RUN cargo build --release --bin zero2prod
 
-# Runtime stage
+# Runtime stage // 4th layer
 FROM debian:bookworm-slim AS runtime
 # Let's switch our working directory to `app` (equivalent to `cd app`)
 # The `app` folder will be created for us by Docker in case it does not 
