@@ -1,13 +1,15 @@
 //! tests/health_check.rs
-use reqwest::Client;
-use secrecy::ExposeSecret;
-use std::{env, net::TcpListener};
-use sqlx::{Connection, PgConnection, PgPool, Executor};
-use zero2prod::{configuration::{self, DataBaseSettings}, startup, telemetry};
-use uuid::Uuid;
 use once_cell::sync::Lazy;
+use reqwest::Client;
+use sqlx::{Connection, Executor, PgConnection, PgPool};
+use std::{env, net::TcpListener};
+use uuid::Uuid;
+use zero2prod::{
+    configuration::{self, DataBaseSettings},
+    startup, telemetry,
+};
 
-static TRACING: Lazy<()> = Lazy::new(||{
+static TRACING: Lazy<()> = Lazy::new(|| {
     // setup logging for spawn app
     // trace debug info warn error
     let default_trace_name: String = "spawn_app".into();
@@ -15,10 +17,12 @@ static TRACING: Lazy<()> = Lazy::new(||{
 
     if env::var("RUST_LOG").is_ok() {
         //get subscriber for tracing
-        let subscriber = telemetry::get_subscriber(default_trace_name, default_level, std::io::stdout);
+        let subscriber =
+            telemetry::get_subscriber(default_trace_name, default_level, std::io::stdout);
         telemetry::init_subscriber(subscriber);
     } else {
-        let subscriber = telemetry::get_subscriber(default_trace_name, default_level, std::io::sink);
+        let subscriber =
+            telemetry::get_subscriber(default_trace_name, default_level, std::io::sink);
         telemetry::init_subscriber(subscriber);
     }
 });
@@ -32,12 +36,14 @@ async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
 
     //configure database from config file
-    let mut configuration = configuration::get_configuration().expect("Couldn't get configuration file");
+    let mut configuration =
+        configuration::get_configuration().expect("Couldn't get configuration file");
     configuration.database.database_name = Uuid::new_v4().to_string();
     let db_pool = configure_database(&configuration.database).await;
 
     //let OS choose port for app and bind listener to it
-    let listener = TcpListener::bind("127.0.0.1:0").expect("unable to provide port to TCP listener");
+    let listener =
+        TcpListener::bind("127.0.0.1:0").expect("unable to provide port to TCP listener");
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{port}");
 

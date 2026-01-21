@@ -1,7 +1,10 @@
 use config;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
-use sqlx::{ConnectOptions, postgres::{PgConnectOptions, PgSslMode}};
+use sqlx::{
+    ConnectOptions,
+    postgres::{PgConnectOptions, PgSslMode},
+};
 use tracing_log::log;
 
 #[derive(Deserialize)]
@@ -13,7 +16,7 @@ pub struct Settings {
 #[derive(Deserialize)]
 pub struct ApplicationSettings {
     pub port: u16,
-    pub host: String
+    pub host: String,
 }
 
 #[derive(Deserialize)]
@@ -23,20 +26,20 @@ pub struct DataBaseSettings {
     pub username: String,
     pub password: SecretString,
     pub database_name: String,
-    pub require_ssl: bool
+    pub require_ssl: bool,
 }
 
 #[derive(PartialEq, Debug)]
 pub enum Environment {
     Local,
-    Production
+    Production,
 }
 
 impl Environment {
     pub fn as_str(self) -> &'static str {
         match self {
             Environment::Local => "local",
-            Environment::Production => "production"
+            Environment::Production => "production",
         }
     }
 }
@@ -47,7 +50,7 @@ impl TryFrom<String> for Environment {
         match s.to_lowercase().as_str() {
             "local" => Ok(Environment::Local),
             "production" => Ok(Environment::Production),
-            _ => Err(s)
+            _ => Err(s),
         }
     }
 }
@@ -61,7 +64,7 @@ impl DataBaseSettings {
         };
 
         PgConnectOptions::new()
-            .password(&self.password.expose_secret())
+            .password(self.password.expose_secret())
             .username(&self.username)
             .host(&self.host)
             .port(self.port)

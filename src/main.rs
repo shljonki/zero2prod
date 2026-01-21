@@ -1,4 +1,4 @@
-use sqlx::{postgres::PgPoolOptions};
+use sqlx::postgres::PgPoolOptions;
 use std::{net::TcpListener, time::Duration};
 use zero2prod::{configuration, startup, telemetry};
 
@@ -18,10 +18,12 @@ async fn main() -> std::io::Result<()> {
         .connect_lazy_with(configuration.database.with_db());
 
     // set up app address which are allowed to send requests to our app
-    let address = format!("{}:{}", configuration.application.host, configuration.application.port);
+    let address = format!(
+        "{}:{}",
+        configuration.application.host, configuration.application.port
+    );
     println!("{}", address);
     let listener = TcpListener::bind(address).expect("unable to provide port for tcp listener");
-
 
     // Bubble up the io::Error if we failed to bind the address
     // Otherwise call .await on our Server
